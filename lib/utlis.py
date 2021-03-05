@@ -1,6 +1,6 @@
 import configparser
 from pyspark import SparkConf
-
+import pyspark.sql.functions as f
 
 def get_spark_app_config():
     spark_conf = SparkConf()
@@ -18,5 +18,29 @@ def get_db_config():
     return config['postgresql']
 
 
-def get_data():
-    return
+def get_data(spark, db_conf):
+    return spark.read \
+        .format("jdbc") \
+        .option("url", db_conf['url']) \
+        .option("dbtable", db_conf['table']) \
+        .option("user", db_conf['username']) \
+        .option("password", db_conf['password']) \
+        .load()
+
+
+def transform_data(data_df):
+    return data_df.groupBy("OrderNumber") \
+                .sum("ProductPrice") \
+                .select("OrderNumber", f.col("sum(ProductPrice)").alias("Total"))
+
+
+def write_data(data_df, db_conf):
+    return data_df.write \
+        .format("jdbc") \
+        .mode("overwrite") \
+        .option("url", db_conf['url']) \
+        .option("dbtable", db_conf['table1']) \
+        .option("truncate", "true") \
+        .option("user", db_conf['username']) \
+        .option("password", db_conf['password']) \
+        .save()
