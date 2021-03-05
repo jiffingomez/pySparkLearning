@@ -1,7 +1,8 @@
 from pyspark.sql import *
 import pyspark.sql.functions as f
 
-from lib.utlis import get_spark_app_config, get_db_config
+from lib.utlis import get_spark_app_config, get_db_config, get_data, write_data, transform_data
+
 from lib.logger import Log4j
 
 def main():
@@ -18,34 +19,18 @@ def main():
     db_conf = get_db_config()
 
     logger.info("Reading data from database")
-    orders_raw_df = spark.read \
-        .format("jdbc") \
-        .option("url", db_conf['url']) \
-        .option("dbtable", db_conf['table']) \
-        .option("user", db_conf['username']) \
-        .option("password", db_conf['password']) \
-        .load()
+    orders_raw_df = get_data(spark, db_conf)
 
     logger.info("Repartition of Data")
     orders_df = orders_raw_df.repartition(2)
 
     logger.info("Transforming data")
-    trans_df = orders_df.groupBy("OrderNumber") \
-                .sum("ProductPrice") \
-                .select("OrderNumber", f.col("sum(ProductPrice)").alias("Total"))
+    trans_df = transform_data(orders_df)
 
     logger.info("Writing result to db")
-    trans_df.write \
-        .format("jdbc") \
-        .mode("overwrite") \
-        .option("url", db_conf['url']) \
-        .option("dbtable", db_conf['table1']) \
-        .option("truncate", "true") \
-        .option("user", db_conf['username']) \
-        .option("password", db_conf['password']) \
-        .save()
+    write_data(trans_df, db_conf)
 
-    input("Enter\n")
+    # input("Enter\n")
     logger.info("Ending Spark Application")
     spark.stop()
 
